@@ -1,41 +1,40 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-const getApiKey = () => {
+export async function generateValentinePoem(name: string, isRecipientFeminine: boolean): Promise<string> {
   try {
-    return process.env.API_KEY || '';
-  } catch (e) {
-    return '';
-  }
-};
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Si le destinataire est une femme (Valentine), l'auteur est un homme (Masculin)
+    // Si le destinataire est un homme (Valentin), l'auteur est une femme (Féminin)
+    const senderPerspective = isRecipientFeminine ? "un homme amoureux (accords masculins)" : "une femme amoureuse (accords féminins)";
+    const recipientGender = isRecipientFeminine ? "féminin (Valentine)" : "masculin (Valentin)";
 
-export async function generateValentinePoem(name: string): Promise<string> {
-  const apiKey = getApiKey();
-  
-  if (!apiKey) {
-    console.warn("API_KEY non trouvée. Utilisation du poème par défaut.");
-    return `Ma chère ${name},\n\nDes roses pour ton sourire,\nDes mots pour te dire,\nQue mon cœur ne veut que toi,\nPour aujourd'hui et pour la vie.`;
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Écris un poème très court (4 lignes) et extrêmement romantique pour ${name}. Elle vient de dire OUI pour être ma Valentine.`,
+      contents: `Écris un poème très court (4 lignes) pour ${name}. 
+      IMPORTANT : Le destinataire est ${recipientGender}. 
+      TU DOIS impérativement écrire du point de vue d'${senderPerspective}. 
+      Par exemple, si tu es une femme écrivant à un homme, utilise "je suis heureuse".`,
       config: {
-        systemInstruction: "Tu es un poète romantique. Tu ne dois répondre QUE par les vers du poème. INTERDICTION d'ajouter une introduction (ex: 'Voici un poème'), un titre, des guillemets ou des commentaires avant ou après le poème. Le texte doit être pur et prêt à être lu.",
+        systemInstruction: `Tu es un poète romantique. 
+        Si tu écris à un homme (Valentin), tu es une femme : utilise le féminin pour toi-même (ex: heureuse, comblée). 
+        Si tu écris à une femme (Valentine), tu es un homme : utilise le masculin pour toi-même (ex: heureux, comblé). 
+        Réponds UNIQUEMENT par les 4 vers du poème, sans rien d'autre.`,
         temperature: 0.8,
+        thinkingConfig: { thinkingBudget: 0 }
       },
     });
 
-    // Nettoyage supplémentaire au cas où le modèle ignorerait l'instruction
     let text = response.text || "";
     text = text.replace(/^(Voici|Voici une proposition|Poème|Pour|Message).*?:/i, "").trim();
-    text = text.replace(/^"|"$/g, "").trim(); // Enlever les guillemets éventuels
+    text = text.replace(/^"|"$/g, "").trim();
 
     return text || "Tu es mon plus beau cadeau.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Roses sont rouges, les violettes sont bleues,\nÀ tes côtés, je suis le plus heureux !";
+    const fallback = isRecipientFeminine 
+      ? `Ma chère ${name},\nDans tes yeux je vois mon bonheur,\nTu es la gardienne de mon cœur.\nJe suis si heureux que tu aies dit oui !`
+      : `Mon cher ${name},\nTon sourire est ma plus belle fleur,\nTu es le gardien de mon bonheur.\nJe suis si heureuse que tu aies dit oui !`;
+    return fallback;
   }
 }

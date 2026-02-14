@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { Step, ValentineState } from './types';
 import { generateValentinePoem } from './services/geminiService';
 import { FloatingHearts } from './components/FloatingHearts';
@@ -14,10 +13,24 @@ const App: React.FC = () => {
   const [noBtnPos, setNoBtnPos] = useState({ x: 0, y: 0 });
   const [isNoMoving, setIsNoMoving] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  const pregeneratedPoemRef = useRef<Promise<string> | null>(null);
+
+  const isFeminineHeuristic = useMemo(() => {
+    const name = state.name.trim().toLowerCase();
+    if (!name) return true;
+    const masculineExceptions = ['antoine', 'etienne', 'stephane', 'guillaume', 'jerome', 'baptiste', 'alexandre', 'maxime', 'faustin'];
+    if (masculineExceptions.includes(name)) return false;
+    return name.endsWith('e') || name.endsWith('a') || name.endsWith('ine') || name.endsWith('elle') || name.endsWith('ette') || name.endsWith('ie');
+  }, [state.name]);
+
+  const valentineTerm = isFeminineHeuristic ? 'ma Valentine' : 'mon Valentin';
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (state.name.trim()) {
+      // On passe l'information du genre au service dès le pre-fetching
+      pregeneratedPoemRef.current = generateValentinePoem(state.name, isFeminineHeuristic);
       setState(prev => ({ ...prev, step: Step.ASK }));
     }
   };
@@ -27,19 +40,23 @@ const App: React.FC = () => {
     const rect = containerRef.current.getBoundingClientRect();
     const maxX = rect.width - 100;
     const maxY = rect.height - 50;
-    
-    // Ensure it doesn't just jitter in one spot
     const newX = Math.random() * maxX;
     const newY = Math.random() * maxY;
-    
     setNoBtnPos({ x: newX, y: newY });
     setIsNoMoving(true);
   }, []);
 
   const handleYes = async () => {
     setState(prev => ({ ...prev, step: Step.LOADING }));
-    const poem = await generateValentinePoem(state.name);
-    setState(prev => ({ ...prev, poem, step: Step.SUCCESS }));
+    
+    let finalPoem = "";
+    if (pregeneratedPoemRef.current) {
+      finalPoem = await pregeneratedPoemRef.current;
+    } else {
+      finalPoem = await generateValentinePoem(state.name, isFeminineHeuristic);
+    }
+    
+    setState(prev => ({ ...prev, poem: finalPoem, step: Step.SUCCESS }));
   };
 
   return (
@@ -77,7 +94,7 @@ const App: React.FC = () => {
         {state.step === Step.ASK && (
           <div className="space-y-10 min-h-[300px] flex flex-col justify-center animate-in fade-in slide-in-from-bottom-4 duration-700">
             <h2 className="text-3xl md:text-4xl font-bold text-rose-600 leading-tight">
-              {state.name}, veux-tu être ma Valentine ? 🥺👉👈
+              {state.name}, veux-tu être {valentineTerm} ? 🥺👉👈
             </h2>
             
             <div className="flex items-center justify-center gap-6 relative h-20">
@@ -112,7 +129,7 @@ const App: React.FC = () => {
               <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl">💝</span>
             </div>
             <p className="text-rose-600 font-medium text-lg animate-pulse">
-              Préparation de ta surprise personnalisée...
+              Derniers préparatifs...
             </p>
           </div>
         )}
@@ -121,7 +138,7 @@ const App: React.FC = () => {
           <div className="space-y-8 animate-in zoom-in duration-1000">
             <div className="text-6xl mb-4">🥳💖🌈</div>
             <h2 className="text-4xl font-black text-rose-600">Yeeeees !!!</h2>
-            <p className="text-xl text-gray-700 italic">Je suis trop content(e) !!!</p>
+            <p className="text-xl text-gray-700 italic">Je suis trop content !!!</p>
             
             <div className="bg-rose-50 p-6 rounded-2xl border-l-4 border-rose-400 text-left shadow-inner">
               <p className="text-gray-400 text-xs uppercase tracking-widest mb-2 font-bold">Un petit message pour toi :</p>
@@ -131,7 +148,10 @@ const App: React.FC = () => {
             </div>
 
             <button
-              onClick={() => setState({ name: '', step: Step.IDENTIFY, poem: '' })}
+              onClick={() => {
+                pregeneratedPoemRef.current = null;
+                setState({ name: '', step: Step.IDENTIFY, poem: '' });
+              }}
               className="text-rose-400 hover:text-rose-600 text-sm font-medium underline"
             >
               Recommencer
@@ -140,7 +160,6 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Credit Footer */}
       <footer className="fixed bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs font-medium tracking-widest pointer-events-none">
         FAIT AVEC AMOUR 💖
       </footer>
