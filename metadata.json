@@ -1,0 +1,5 @@
+{
+  "name": "Valentine's Magic Surprise",
+  "description": "An interactive Valentine's Day experience that asks the big question and generates a personalized romantic poem using Gemini AI.",
+  "requestFramePermissions": []
+}
